@@ -21,17 +21,19 @@
  */
 
 using System.Reflection;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace TextureReplacer
 {
-    [KSPAddon(KSPAddon.Startup.Instantly, true)]
+    [KSPAddon(KSPAddon.Startup.MainMenu, true)]
     public class TextureReplacer : MonoBehaviour
     {
         // Status.
         public static bool isInitialised = false;
 
         public static bool isLoaded = false;
+        public static Dictionary<string, Shader> allShaders = new Dictionary<string, Shader>();
 
         public void Start()
         {
@@ -41,6 +43,7 @@ namespace TextureReplacer
 
             isInitialised = false;
             isLoaded = false;
+            LoadShaders();
 
             if (Reflections.instance != null)
                 Reflections.instance.destroy();
@@ -63,25 +66,54 @@ namespace TextureReplacer
 
         public void LateUpdate()
         {
-            if (!isInitialised)
+            if (!isLoaded)
             {
-                // Compress textures, generate mipmaps, convert DXT5 -> DXT1 if necessary etc.
-                Loader.instance.processTextures();
-
-                if (GameDatabase.Instance.IsReady())
+                if (!isInitialised)
                 {
-                    Loader.instance.initialise();
-                    isInitialised = true;
+                    // Compress textures, generate mipmaps, convert DXT5 -> DXT1 if necessary etc.
+                    Loader.instance.processTextures();
+
+                    if (GameDatabase.Instance.IsReady())
+                    {
+                        Loader.instance.initialise();
+                        isInitialised = true;
+                    }
+                }
+                else if (PartLoader.Instance.IsReady())
+                {
+                    Replacer.instance.load();
+                    Reflections.instance.load();
+                    Personaliser.instance.load();
+
+                    isLoaded = true;
+                    //Destroy(this);
                 }
             }
-            else if (PartLoader.Instance.IsReady())
+        }
+        internal static void LoadShaders()
+        {
+            Shader.WarmupAllShaders();
+            foreach (var shader in Resources.FindObjectsOfTypeAll<Shader>())
             {
-                Replacer.instance.load();
-                Reflections.instance.load();
-                Personaliser.instance.load();
+                if (!allShaders.ContainsKey(shader.name))
+                {
+                    allShaders.Add(shader.name, shader);
+                    //Util.log("loaded shader: " + shader.name);
+                }
+            }
+        }
 
-                isLoaded = true;
-                Destroy(this);
+        internal static Shader GetShader(string name)
+        {
+            if (allShaders.ContainsKey(name))
+            {
+//                Util.log("shader: " + name + " found");
+                return allShaders[name];
+            }
+            else
+            {
+ //               Util.log("shader: " + name + " not found: ");
+                return null;
             }
         }
     }
